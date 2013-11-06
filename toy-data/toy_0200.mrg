@@ -1,0 +1,23 @@
+( (S
+    (NNP Mary)
+    (VP
+        (VBZ eats)
+        (NN fish)
+    )
+  )
+)
+
+( (S
+    (NNP John)
+    (VP
+        (VBZ drinks)
+        (NP
+            (JJ hot)
+            (NN water)
+        )
+    )
+  )
+)
+
+
+
