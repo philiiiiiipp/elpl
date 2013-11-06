@@ -19,7 +19,7 @@ public class PCFGParserTester {
     Map<String, String> argMap = CommandLineUtils.simpleCommandLineParser(args);
 
     // Set up default parameters and settings
-    String basePath = "data/";
+    String basePath = "data";
     boolean verbose = true;
     String testMode = "validate";
     
