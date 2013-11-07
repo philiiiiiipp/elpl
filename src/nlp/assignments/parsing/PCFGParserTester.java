@@ -101,7 +101,7 @@ public class PCFGParserTester {
     	System.out.println(" Scoring test trees ...");
     	int sentIdx = 0;
     	for (Tree<String> testTree : testTrees) {
-    		double logProb = parser.getLogScore(testTree);
+    		double logProb = parser.getLogScore(annotator.annotateTree(testTree));
     		System.out.println((sentIdx++ ) + ":  logscore =  " + logProb);
     		totLogProb += logProb;
     		if (sentIdx > 9) {
