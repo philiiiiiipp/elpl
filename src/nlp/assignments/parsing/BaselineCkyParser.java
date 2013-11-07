@@ -245,43 +245,51 @@ class BaselineCkyParser implements Parser {
 
     @Override
     public double getLogScore(Tree<String> annotatedTree) {
+        final List<Tree<String>> children = annotatedTree.getChildren();
         double logScore = 0.0;
 
-        // Tree<String> annotatedTree = annotator.annotateTree(tree);
-        final List<Tree<String>> children = annotatedTree.getChildren();
-
-        if (annotatedTree.isLeaf()) {
-            return logScore;
+        if (annotatedTree.isPreTerminal()) {
+            // THe stop condition gets the score of the leaf word for this position
+            return Math.log(lexicon.scoreTagging(children.get(0).getLabel(), annotatedTree.getLabel()));
 
         } else if (children.size() == 1) {
+            // When there's only one child, use unary rules
             final List<UnaryRule> parentRules = grammar.getUnaryRulesByParent(annotatedTree.getLabel());
             final List<UnaryRule> childRules = grammar.getUnaryRulesByChild(children.get(0).getLabel());
 
+            // Intersect the rules
             final List<UnaryRule> currentRules = new ArrayList<>(parentRules);
             currentRules.retainAll(childRules);
-            logScore += (currentRules.isEmpty() ? Double.NEGATIVE_INFINITY : Math.log(currentRules.get(0).getScore()));
-//            System.out.println("U" + logScore);
-            logScore += getLogScore(children.get(0));
+
+            // If there are non-existing sentence shapes the tree is not possible
+            if (currentRules.isEmpty()) {
+                return Double.NEGATIVE_INFINITY;
+            }
+
+            // Return its score and its child's score
+            logScore += Math.log(currentRules.get(0).getScore()) + getLogScore(children.get(0));
 
         } else {
+            // When there are two children, use binary rules
             final List<BinaryRule> parentRules = grammar.getBinaryRulesByParent(annotatedTree.getLabel());
             final List<BinaryRule> leftChildRules = grammar.getBinaryRulesByLeftChild(children.get(0).getLabel());
             final List<BinaryRule> rightChildRules = grammar.getBinaryRulesByRightChild(children.get(1).getLabel());
 
+            // Intersect the rules
             final List<BinaryRule> currentRules = new ArrayList<>(parentRules);
             currentRules.retainAll(leftChildRules);
             currentRules.retainAll(rightChildRules);
-            logScore += (currentRules.isEmpty() ? Double.NEGATIVE_INFINITY : Math.log(currentRules.get(0).getScore()));
-            if (Double.isInfinite(logScore)) {
-//                System.out.println("B" + logScore);
+
+            // If there are non-existing sentence shapes the tree is not possible
+            if (currentRules.isEmpty()) {
+                return Double.NEGATIVE_INFINITY;
             }
-//            System.out.println("B" + logScore);
-            logScore += getLogScore(children.get(0));
-            logScore += getLogScore(children.get(1));
+
+            // Return its score and its children's score
+            logScore += Math.log(currentRules.get(0).getScore()) + getLogScore(children.get(0))
+                    + getLogScore(children.get(1));
         }
-        
 
         return logScore;
     }
-
 }
