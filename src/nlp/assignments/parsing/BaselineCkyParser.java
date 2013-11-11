@@ -248,11 +248,13 @@ class BaselineCkyParser implements Parser {
         final List<Tree<String>> children = annotatedTree.getChildren();
         double logScore = 0.0;
 
+        // The stop condition gets the score of the leaf word for this position
         if (annotatedTree.isPreTerminal()) {
-            // THe stop condition gets the score of the leaf word for this position
             return Math.log(lexicon.scoreTagging(children.get(0).getLabel(), annotatedTree.getLabel()));
+        }
 
-        } else if (children.size() == 1) {
+        // If we're not pre-terminal, we look at how many children we have
+        if (children.size() == 1) {
             // When there's only one child, use unary rules
             final List<UnaryRule> parentRules = grammar.getUnaryRulesByParent(annotatedTree.getLabel());
             final List<UnaryRule> childRules = grammar.getUnaryRulesByChild(children.get(0).getLabel());
