@@ -206,7 +206,6 @@ class BaselineCkyParser implements Parser {
                         chart.setBackPointer(min, max, parent, optRule, optMid);
                     }
                 }
-
             }
         }
 
