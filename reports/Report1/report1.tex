@@ -17,7 +17,13 @@ In this assignment the focus was to understand and to implement how to calculate
 
 In our solution method we went through the tree recursively summing the log scores of each subtree. It was important to understand to use the lexicon rules instead of the grammar rules depending on wether the current node is a preterminal or not.
 When the node is preterminal, we used the lexicon to retrieve the score for this node and the corresponding word. Otherwise we used the grammar to find the rule corresponding to the node and its direct children.
-To prevent the tree from being annotated multiple times during our recursion process, we moved the annotating operation outside of the getLogScore method.
+To prevent the tree from being annotated multiple times during our recursion process, we moved the annotating operation outside of the getLogScore method. This means it is necessary to change line 104 in the class PCFGParserTester from \\
+
+\texttt{double logProb = parser.getLogScore(testTree);}
+
+to
+
+\texttt{double logProb = parser.getLogScore(annotator.annotateTree(testTree));}
 
 \section{Results}
 
