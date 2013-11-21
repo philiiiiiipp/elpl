@@ -74,6 +74,7 @@ public class PCFGParserTester {
       //testTrees = readTrees(basePath, 2200, 2219, maxTestLength); // 
       
       testTrees = readTrees(basePath, 2200, 2299, maxTestLength);  
+    } else {
       System.out.print("Loading test trees  ... ");
       testTrees = readTrees(basePath, 2300, 2399, maxTestLength);
     }
