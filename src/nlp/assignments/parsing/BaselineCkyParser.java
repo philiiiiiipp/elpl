@@ -20,17 +20,14 @@ class BaselineCkyParser implements Parser {
     Lexicon lexicon;
     Grammar grammar;
 
-    // UnaryClosure unaryClosure;
+    UnaryClosure unaryClosure;
 
     static class Chart {
-        /*
-         * TODO This class (and enclosed EdgeInfo) needs to be changed to keep track of unary rules
-         * (and unary chains) used
-         */
 
         static class EdgeInfo {
             double score;
-            BinaryRule rule = null;
+            BinaryRule binaryRule = null;
+            UnaryRule unaryRule = null;
             int mid = -1;
 
             EdgeInfo(double score) {
@@ -39,10 +36,10 @@ class BaselineCkyParser implements Parser {
 
             @Override
             public String toString() {
-                if (rule == null) {
+                if (binaryRule == null && unaryRule == null) {
                     return Double.toString(score);
                 } else {
-                    return score + ": " + "[ rule = " + rule + ", mid = " + mid + "]";
+                    return score + ": " + "[ rule = " + (binaryRule != null ? binaryRule : unaryRule) + ", mid = " + mid + "]";
                 }
 
             }
@@ -91,16 +88,26 @@ class BaselineCkyParser implements Parser {
 
         void setBackPointer(int i, int j, String label, BinaryRule rule, int midPoint) {
             EdgeInfo edgeInfo = chart.get(i).get(j).get(label);
-            edgeInfo.rule = rule;
+            edgeInfo.binaryRule = rule;
             edgeInfo.mid = midPoint;
+        }
+        void setBackPointer(int i, int j, String label, UnaryRule rule) {
+            EdgeInfo edgeInfo = chart.get(i).get(j).get(label);
+            edgeInfo.unaryRule = rule;
         }
 
         int getMidPoint(int i, int j, String label) {
             return chart.get(i).get(j).get(label).mid;
         }
 
-        BinaryRule getRule(int i, int j, String label) {
-            return chart.get(i).get(j).get(label).rule;
+        boolean hasBinaryRule(int i, int j, String label) {
+            return chart.get(i).get(j).get(label).binaryRule != null;
+        }
+        BinaryRule getBinaryRule(int i, int j, String label) {
+            return chart.get(i).get(j).get(label).binaryRule;
+        }
+        UnaryRule getUnaryRule(int i, int j, String label) {
+            return chart.get(i).get(j).get(label).unaryRule;
         }
 
         @Override
@@ -113,29 +120,38 @@ class BaselineCkyParser implements Parser {
     void traverseBackPointersHelper(List<String> sent, Chart chart, int i, int j, Tree<String> currTree) {
         String parent = currTree.getLabel();
 
-        /**
-         * TODO This method needs to be updated to keep print out unary rules used
-         */
+        if (j - i > 1) { // binary or unary rules
+            
+            List<Tree<String>> children;
 
-        // binary rules
-        if (j - i > 1) {
+            if (chart.hasBinaryRule(i, j, parent)) {
+                
+                BinaryRule rule = chart.getBinaryRule(i, j, parent);
+                int mid = chart.getMidPoint(i, j, parent);
+                children = new ArrayList<Tree<String>>(2);
+    
+                Tree<String> t1 = new Tree<String>(rule.getLeftChild());
+                traverseBackPointersHelper(sent, chart, i, mid, t1);
+                children.add(t1);
+    
+                Tree<String> t2 = new Tree<String>(rule.getRightChild());
+                traverseBackPointersHelper(sent, chart, mid, j, t2);
+                children.add(t2);
+                
+            } else {
 
-            BinaryRule rule = chart.getRule(i, j, parent);
-            int mid = chart.getMidPoint(i, j, parent);
-            List<Tree<String>> children = new ArrayList<Tree<String>>(2);
+                UnaryRule rule = chart.getUnaryRule(i, j, parent);             
+                children = new ArrayList<Tree<String>>(1);
 
-            Tree<String> t1 = new Tree<String>(rule.getLeftChild());
-            traverseBackPointersHelper(sent, chart, i, mid, t1);
-            children.add(t1);
+                Tree<String> t = new Tree<String>(rule.getChild());
+                traverseBackPointersHelper(sent, chart, i, j, t);
+                children.add(t);
 
-            Tree<String> t2 = new Tree<String>(rule.getRightChild());
-            traverseBackPointersHelper(sent, chart, mid, j, t2);
-            children.add(t2);
+            }
 
             currTree.setChildren(children);
 
-            // preterminal production
-        } else {
+        } else { // preterminal production
             assert j - i == 1;
 
             Tree<String> termProd = new Tree<String>(sent.get(i));
@@ -163,11 +179,6 @@ class BaselineCkyParser implements Parser {
 
     public Tree<String> getBestParse(List<String> sentence) {
 
-        /*
-         * TODO This method needs to be extended to support unary rules The UnaryClosure class
-         * should simplify this task substantially
-         */
-
         // note that chart.get(i, j, c) translates to chart[i][j][c] we used in the slides
 
         Chart chart = new Chart(sentence.size());
@@ -180,15 +191,14 @@ class BaselineCkyParser implements Parser {
             }
         }
 
-        // CKY for binary trees
-        for (int max = 2; max <= sentence.size(); max++) {
-            for (int min = max - 2; min >= 0; min--) {
-                // first without unary roles
+        // CKY for binary and unary trees
+        for (int max = 1; max <= sentence.size(); max++) {
+            for (int min = max - 1; min >= 0; min--) {
                 for (String parent : grammar.states) {
                     double bestScore = Double.NEGATIVE_INFINITY;
                     int optMid = -1;
-                    BinaryRule optRule = null;
-                    // parent -> c1 c2
+                    
+                    BinaryRule optBinaryRule = null;
                     for (BinaryRule rule : grammar.getBinaryRulesByParent(parent)) {
                         for (int mid = min + 1; mid < max; mid++) {
                             double score1 = chart.get(min, mid, rule.getLeftChild());
@@ -197,13 +207,29 @@ class BaselineCkyParser implements Parser {
                             if (currScore > bestScore) {
                                 bestScore = currScore;
                                 optMid = mid;
-                                optRule = rule;;
+                                optBinaryRule = rule;
                             }
                         }
                     }
+                    
+                    UnaryRule optUnaryRule = null;
+                    for (UnaryRule rule : unaryClosure.getClosedUnaryRulesByParent(parent)) {
+                        double score = chart.get(min, max, rule.getChild());
+                        double currScore = score * rule.getScore();
+                        if (currScore > bestScore) {
+                            bestScore = currScore;
+                            optBinaryRule = null;
+                            optUnaryRule = rule;
+                        }
+                    }
+                    
                     if (bestScore != Double.NEGATIVE_INFINITY) {
                         chart.set(min, max, parent, bestScore);
-                        chart.setBackPointer(min, max, parent, optRule, optMid);
+                        if (optBinaryRule != null) {
+                            chart.setBackPointer(min, max, parent, optBinaryRule, optMid);
+                        } else {
+                            chart.setBackPointer(min, max, parent, optUnaryRule);
+                        }
                     }
                 }
 
@@ -230,8 +256,7 @@ class BaselineCkyParser implements Parser {
         lexicon = new Lexicon(annotatedTrainTrees);
         System.out.println("done. (" + grammar.getStates().size() + " states)");
 
-        // use the unary closure to support unary rules in the CKY algorithm
-        // unaryClosure = new UnaryClosure(grammar);
+        unaryClosure = new UnaryClosure(grammar);
 
     }
 
