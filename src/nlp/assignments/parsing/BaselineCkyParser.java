@@ -232,7 +232,6 @@ class BaselineCkyParser implements Parser {
                         }
                     }
                 }
-
             }
         }
 
