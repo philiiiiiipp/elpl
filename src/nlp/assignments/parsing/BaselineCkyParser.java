@@ -90,11 +90,13 @@ class BaselineCkyParser implements Parser {
         void setBackPointer(int i, int j, String label, BinaryRule rule, int midPoint) {
             EdgeInfo edgeInfo = chart.get(i).get(j).get(label);
             edgeInfo.binaryRule = rule;
+            edgeInfo.unaryRule = null;
             edgeInfo.mid = midPoint;
         }
 
         void setBackPointer(int i, int j, String label, UnaryRule rule) {
             EdgeInfo edgeInfo = chart.get(i).get(j).get(label);
+            edgeInfo.binaryRule = null;
             edgeInfo.unaryRule = rule;
         }
 
@@ -149,7 +151,9 @@ class BaselineCkyParser implements Parser {
 
                 Tree<String> t = new Tree<String>(rule.getChild());
                 traverseBackPointersHelper(sent, chart, i, j, t);
-                children.add(t);
+
+                List<String> path = unaryClosure.getPath(rule);
+                children.add(buildUnaryTree(path.subList(0, path.size() - 1), Collections.singletonList(t)));
 
             }
 
@@ -159,13 +163,12 @@ class BaselineCkyParser implements Parser {
             assert j - i == 1;
 
             UnaryRule rule = chart.getUnaryRule(i, j, parent);
-
             if (rule != null && !rule.getChild().equals(parent)) {
                 List<Tree<String>> children = new ArrayList<Tree<String>>(1);
 
-                Tree<String> t = new Tree<String>(rule.getChild());
-                traverseBackPointersHelper(sent, chart, i, j, t);
-                children.add(t);
+                List<Tree<String>> emptyList = Collections.emptyList();
+                Tree<String> leaf = new Tree<String>(sent.get(i), emptyList);
+                children.add(buildUnaryTree(unaryClosure.getPath(rule), Collections.singletonList(leaf)));
 
                 currTree.setChildren(children);
 
@@ -175,6 +178,14 @@ class BaselineCkyParser implements Parser {
             }
         }
 
+    }
+
+    protected <L> Tree<L> buildUnaryTree(List<L> path, List<Tree<L>> leafChildren) {
+        List<Tree<L>> trees = leafChildren;
+        for (int k = path.size() - 1; k >= 0; k--) {
+            trees = Collections.singletonList(new Tree<L>(path.get(k), trees));
+        }
+        return trees.get(0);
     }
 
     // traverse back pointers and create a tree
@@ -195,16 +206,17 @@ class BaselineCkyParser implements Parser {
     }
 
     public Tree<String> getBestParse(List<String> sentence) {
-
-        // note that chart.get(i, j, c) translates to chart[i][j][c] we used in the slides
-
         Chart chart = new Chart(sentence.size());
 
         // preterminal rules
         for (int k = 0; k < sentence.size(); k++) {
             for (String preterm : lexicon.getAllTags()) {
-                chart.set(k, k + 1, preterm, lexicon.scoreTagging(sentence.get(k), preterm));
-
+                final double score = lexicon.scoreTagging(sentence.get(k), preterm);
+                if (score == 0) {
+                    // We can ignore impossible terms to improve speed
+                    continue;
+                }
+                chart.set(k, k + 1, preterm, score);
             }
         }
 
@@ -212,7 +224,7 @@ class BaselineCkyParser implements Parser {
         for (int max = 1; max <= sentence.size(); max++) {
             for (int min = max - 1; min >= 0; min--) {
                 for (String parent : grammar.states) {
-                    double bestScore = Double.NEGATIVE_INFINITY;
+                    double bestScore = 0;
                     int optMid = -1;
 
                     BinaryRule optBinaryRule = null;
@@ -231,17 +243,18 @@ class BaselineCkyParser implements Parser {
 
                     UnaryRule optUnaryRule = null;
                     for (UnaryRule rule : unaryClosure.getClosedUnaryRulesByParent(parent)) {
-                        double score = chart.get(min, max, rule.getChild());
-                        // double currScore = Math.pow(Math.pow(score, 2) *
-                        // Math.pow(rule.getScore(), 2), 0.75);
-                        double currScore = score * rule.getScore();
+                        if (rule.getChild().equals(parent)) {
+                            // Ignore children that cause instant recursion
+                            continue;
+                        }
+                        double currScore = chart.get(min, max, rule.getChild()) * rule.getScore();
                         if (currScore > bestScore) {
                             bestScore = currScore;
                             optUnaryRule = rule;
                         }
                     }
 
-                    if (bestScore != Double.NEGATIVE_INFINITY) {
+                    if (bestScore != 0) {
                         chart.set(min, max, parent, bestScore);
                         if (optUnaryRule == null) {
                             chart.setBackPointer(min, max, parent, optBinaryRule, optMid);
@@ -257,6 +270,7 @@ class BaselineCkyParser implements Parser {
         Tree<String> annotatedBestParse = traverseBackPointers(sentence, chart);
 
         return annotator.unAnnotateTree(annotatedBestParse);
+        // return annotatedBestParse;
     }
 
     public BaselineCkyParser(List<Tree<String>> trainTrees, TreeAnnotator annotator) {
