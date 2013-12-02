@@ -126,11 +126,13 @@ class BaselineCkyParser implements Parser {
     void traverseBackPointersHelper(List<String> sent, Chart chart, int i, int j, Tree<String> currTree) {
         String parent = currTree.getLabel();
 
-        if (j - i > 1) { // binary or unary rules
+        if (j - i > 1) {
+            // Non-preterminal rules
 
             List<Tree<String>> children;
 
             if (chart.hasBinaryRule(i, j, parent)) {
+                // If this edge has a binary ryle, traverse both children
 
                 BinaryRule rule = chart.getBinaryRule(i, j, parent);
                 int mid = chart.getMidPoint(i, j, parent);
@@ -145,6 +147,7 @@ class BaselineCkyParser implements Parser {
                 children.add(t2);
 
             } else {
+                // For unary rules, only traverse the single child based on the unary closure path
 
                 UnaryRule rule = chart.getUnaryRule(i, j, parent);
                 children = new ArrayList<Tree<String>>(1);
@@ -159,11 +162,13 @@ class BaselineCkyParser implements Parser {
 
             currTree.setChildren(children);
 
-        } else { // preterminal production
+        } else {
+            // Preterminal production
             assert j - i == 1;
 
             UnaryRule rule = chart.getUnaryRule(i, j, parent);
-            if (rule != null && !rule.getChild().equals(parent)) {
+            if (rule != null) {
+                // If we have a unary rule at the preterminal node, follow its closed path
                 List<Tree<String>> children = new ArrayList<Tree<String>>(1);
 
                 List<Tree<String>> emptyList = Collections.emptyList();
@@ -173,6 +178,7 @@ class BaselineCkyParser implements Parser {
                 currTree.setChildren(children);
 
             } else {
+                // Without any rule left at the preterminal node, add the actual word
                 Tree<String> termProd = new Tree<String>(sent.get(i));
                 currTree.setChildren(Collections.singletonList(termProd));
             }
@@ -181,6 +187,7 @@ class BaselineCkyParser implements Parser {
     }
 
     protected <L> Tree<L> buildUnaryTree(List<L> path, List<Tree<L>> leafChildren) {
+        // Follow the unary closure path to create a new tree and insert the children
         List<Tree<L>> trees = leafChildren;
         for (int k = path.size() - 1; k >= 0; k--) {
             trees = Collections.singletonList(new Tree<L>(path.get(k), trees));
@@ -222,7 +229,7 @@ class BaselineCkyParser implements Parser {
 
         for (int max = 1; max <= sentence.size(); max++) {
             for (int min = max - 1; min >= 0; min--) {
-                // CKY for binary trees
+                // Determine the best binary rules first so that they can be used for unary scoring
                 for (String parent : grammar.states) {
                     double bestScore = 0;
                     int optMid = -1;
@@ -247,7 +254,7 @@ class BaselineCkyParser implements Parser {
                     }
                 }
 
-                // CKY for unary trees
+                // With the binary rules in place, consider unary rules
                 for (String parent : grammar.states) {
                     double bestScore = chart.get(min, max, parent);
 
@@ -257,6 +264,7 @@ class BaselineCkyParser implements Parser {
                             // Ignore children that cause instant recursion
                             continue;
                         }
+
                         double currScore = chart.get(min, max, rule.getChild()) * rule.getScore();
                         if (currScore > bestScore) {
                             bestScore = currScore;

@@ -66,7 +66,7 @@ public class PCFGParserTester {
    
     System.out.println("done. (" + trainTrees.size() + " trees)");
     List<Tree<String>> testTrees = null;
-    if (!testMode.equalsIgnoreCase("validate")) {
+    if (testMode.equalsIgnoreCase("validate")) {
       
       System.out.print("Loading validation trees ... ");
       
