@@ -220,9 +220,9 @@ class BaselineCkyParser implements Parser {
             }
         }
 
-        // CKY for binary and unary trees
         for (int max = 1; max <= sentence.size(); max++) {
             for (int min = max - 1; min >= 0; min--) {
+                // CKY for binary trees
                 for (String parent : grammar.states) {
                     double bestScore = 0;
                     int optMid = -1;
@@ -241,6 +241,16 @@ class BaselineCkyParser implements Parser {
                         }
                     }
 
+                    if (optBinaryRule != null) {
+                        chart.set(min, max, parent, bestScore);
+                        chart.setBackPointer(min, max, parent, optBinaryRule, optMid);
+                    }
+                }
+
+                // CKY for unary trees
+                for (String parent : grammar.states) {
+                    double bestScore = chart.get(min, max, parent);
+
                     UnaryRule optUnaryRule = null;
                     for (UnaryRule rule : unaryClosure.getClosedUnaryRulesByParent(parent)) {
                         if (rule.getChild().equals(parent)) {
@@ -254,13 +264,9 @@ class BaselineCkyParser implements Parser {
                         }
                     }
 
-                    if (bestScore != 0) {
+                    if (optUnaryRule != null) {
                         chart.set(min, max, parent, bestScore);
-                        if (optUnaryRule == null) {
-                            chart.setBackPointer(min, max, parent, optBinaryRule, optMid);
-                        } else {
-                            chart.setBackPointer(min, max, parent, optUnaryRule);
-                        }
+                        chart.setBackPointer(min, max, parent, optUnaryRule);
                     }
                 }
             }
@@ -270,7 +276,6 @@ class BaselineCkyParser implements Parser {
         Tree<String> annotatedBestParse = traverseBackPointers(sentence, chart);
 
         return annotator.unAnnotateTree(annotatedBestParse);
-        // return annotatedBestParse;
     }
 
     public BaselineCkyParser(List<Tree<String>> trainTrees, TreeAnnotator annotator) {
